@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+
+# secrets & local data — never commit
+.env
+*.pem
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/data/

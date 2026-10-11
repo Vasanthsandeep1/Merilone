@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Meril One",
+    "slug": "meril-one-customer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F6F7F9",
+    "splash": {
+      "backgroundColor": "#1E4373"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.meril.one.customer"
+    },
+    "android": {
+      "package": "com.meril.one.customer",
+      "adaptiveIcon": {
+        "backgroundColor": "#1E4373"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font"
+    ]
+  }
+}

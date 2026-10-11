@@ -1,0 +1,16 @@
+{
+  "name": "meril-one",
+  "private": true,
+  "description": "Meril One — Customer and Service Engineer mobile apps (Expo)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "customer": "npm --workspace customer-app run start",
+    "engineer": "npm --workspace engineer-app run start"
+  },
+  "devDependencies": {
+    "@expo/ngrok": "^4.1.3"
+  }
+}

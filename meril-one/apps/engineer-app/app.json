@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Meril One Partner",
+    "slug": "meril-one-engineer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F6F7F9",
+    "splash": { "backgroundColor": "#0F172A" },
+    "ios": { "supportsTablet": false, "bundleIdentifier": "com.meril.one.engineer" },
+    "android": { "package": "com.meril.one.engineer", "adaptiveIcon": { "backgroundColor": "#0F172A" } },
+    "plugins": ["expo-secure-store"]
+  }
+}

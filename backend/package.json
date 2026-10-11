@@ -1,0 +1,45 @@
+{
+  "name": "machine-service-backend",
+  "version": "1.0.0",
+  "description": "Backend for machine/product quoting and service management app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "predev": "node scripts/free-port.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.12",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "html-to-docx": "^1.8.0",
+    "jsonwebtoken": "^9.0.2",
+    "jszip": "^3.10.2",
+    "mammoth": "^1.12.2",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.10.0",
+    "nodemailer": "^9.0.3",
+    "pdf-parse": "^2.4.5",
+    "pdf-to-img": "^7.0.0",
+    "pdfkit": "^0.15.0",
+    "puppeteer": "^23.11.1",
+    "razorpay": "^2.9.8",
+    "sax": "^1.6.1",
+    "sequelize": "^6.37.3",
+    "tesseract.js": "^7.0.0",
+    "undici": "^8.10.2",
+    "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "data/**",
+      "uploads/**"
+    ]
+  }
+}
