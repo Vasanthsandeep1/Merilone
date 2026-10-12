@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Op } = require('sequelize');
-const { Opi, OpiFormat, StaffUser, PartnerProfile, FlspTarget, User } = require('../models');
+const { Opi, OpiFormat, StaffUser, PartnerProfile, FlspTarget, User, Client, Quotation } = require('../models');
 const TEMPLATE = require('../config/opiTemplate');
 const calc = require('../utils/opiCalc');
 const { renderOpiPdf } = require('../utils/opiPdf');
@@ -253,6 +253,87 @@ exports.excel = async (req, res) => {
   } catch (err) {
     console.error('opi excel error:', err);
     fail(res, 500, 'Could not make the Excel file');
+  }
+};
+
+// @route DELETE /api/opi/:id  — a sales person deletes their own OPI (the Master Admin: any in the org).
+// The OPI and its PDF are removed; it no longer counts in their sales.
+exports.remove = async (req, res) => {
+  try {
+    const o = await findOpi(req);
+    if (!o) return fail(res, 404, 'OPI not found');
+    fs.rmSync(pdfFile(o), { force: true });
+    await o.destroy();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('opi remove error:', err);
+    fail(res, 500, 'Could not delete the OPI');
+  }
+};
+
+// ---------------- Fill an OPI from Sales & Invoices ----------------
+// Pick a client (Our Clients), then one of their Sales Orders / Invoices /
+// Quotations; the form is filled with the client's details and the lines.
+const SOURCE_TYPES = ['sales_order', 'invoice', 'quotation', 'proforma'];
+const DOC_LABEL = { sales_order: 'Sales Order', invoice: 'Invoice', quotation: 'Quotation', proforma: 'Proforma Invoice' };
+
+// @route GET /api/opi/source/clients  — the org's clients (this person's own first)
+exports.sourceClients = async (req, res) => {
+  try {
+    const rows = await Client.findAll({ where: { userId: req.user.id, status: 'Active' }, attributes: ['id', 'businessName', 'city', 'salesStaffId'], order: [['businessName', 'ASC']], raw: true });
+    const mine = req.user.staffId || null;
+    res.json({ success: true, data: rows.map((c) => ({ id: c.id, name: c.businessName, city: c.city, mine: !!mine && c.salesStaffId === mine })).sort((a, b) => Number(b.mine) - Number(a.mine)) });
+  } catch (err) {
+    console.error('opi sourceClients error:', err);
+    fail(res, 500, 'Could not load clients');
+  }
+};
+
+// @route GET /api/opi/source/clients/:id/docs  — that client's sales orders, invoices, quotations
+exports.sourceDocs = async (req, res) => {
+  try {
+    const client = await Client.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!client) return fail(res, 404, 'Client not found');
+    const docs = await Quotation.findAll({
+      where: { userId: req.user.id, clientId: client.id, docType: SOURCE_TYPES, status: { [Op.ne]: 'Rejected' } },
+      attributes: ['id', 'docType', 'quotationNo', 'quotationDate', 'poNumber', 'grandTotal', 'items'], order: [['quotationDate', 'DESC'], ['id', 'DESC']],
+    });
+    const order = (d) => SOURCE_TYPES.indexOf(d.docType);
+    res.json({
+      success: true,
+      data: docs.sort((a, b) => order(a) - order(b)).map((d) => ({
+        id: d.id, docType: d.docType, label: DOC_LABEL[d.docType], no: d.quotationNo, date: d.quotationDate, poNumber: d.poNumber,
+        total: Number(d.grandTotal) || 0, lines: Array.isArray(d.items) ? d.items.length : 0,
+      })),
+    });
+  } catch (err) {
+    console.error('opi sourceDocs error:', err);
+    fail(res, 500, 'Could not load documents');
+  }
+};
+
+// @route GET /api/opi/source/docs/:id  — client details + lines, ready to fill the form
+exports.sourceDoc = async (req, res) => {
+  try {
+    const d = await Quotation.findOne({ where: { id: req.params.id, userId: req.user.id, docType: SOURCE_TYPES } });
+    if (!d) return fail(res, 404, 'Document not found');
+    const c = d.clientId ? await Client.findOne({ where: { id: d.clientId, userId: req.user.id } }) : null;
+    const ship = d.shippingTo && typeof d.shippingTo === 'object' ? d.shippingTo : null;
+    res.json({
+      success: true,
+      data: {
+        doc: { id: d.id, docType: d.docType, label: DOC_LABEL[d.docType], no: d.quotationNo, date: d.quotationDate, poNumber: d.poNumber || '', poDate: d.poDate || d.quotationDate || '' },
+        client: c ? {
+          name: c.businessName || '', code: c.uniqueKey || '', gstin: c.gstin || '', pan: c.pan || '', email: c.email || '', phone: c.phone || '',
+          address: c.streetAddress || '', city: c.city || '', state: c.state || '', pin: c.postalCode || '',
+        } : null,
+        ship: ship ? { name: ship.name || ship.businessName || '', address: ship.address || ship.streetAddress || '', city: ship.city || '', state: ship.state || '', pin: ship.pincode || ship.postalCode || '' } : null,
+        items: (Array.isArray(d.items) ? d.items : []).map((it) => ({ name: String(it.name || '').trim(), description: String(it.description || '').trim(), hsn: it.hsn || '', qty: Number(it.qty) || 0, rate: Number(it.rate) || 0, unit: it.unit || '' })),
+      },
+    });
+  } catch (err) {
+    console.error('opi sourceDoc error:', err);
+    fail(res, 500, 'Could not load the document');
   }
 };
 

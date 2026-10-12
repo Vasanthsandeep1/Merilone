@@ -25,6 +25,8 @@ const { costPrices } = require('./gpTrackerController');
 //                  FY sales with GST × days gone in the FY  (days of sales
 //                  still unpaid; lower is better).
 //   Eligible     = GP% > 45 and AR days < 100.
+// Logins that look after a team: RSM (sales people) and Zonal Manager (RSMs + sales people).
+const MANAGERS = ['rsm', 'zonal_manager'];
 const GP_MIN = 45;
 const AR_MAX_DAYS = 100;
 
@@ -176,10 +178,12 @@ async function metricsFor(ownerUserId, staff, fy, costs) {
 exports.me = async (req, res) => {
   try {
     let staff;
-    // An RSM opening one of their team members' dashboards (My Team).
-    if (req.user.staffId && req.user.staffRole === 'rsm' && req.query.staffId && Number(req.query.staffId) !== req.user.staffId) {
+    // An RSM / Zonal Manager opening a team member's dashboard (My Team):
+    // an RSM sees Sales / FLSP people; a Zonal Manager also sees RSMs.
+    if (req.user.staffId && MANAGERS.includes(req.user.staffRole) && req.query.staffId && Number(req.query.staffId) !== req.user.staffId) {
       staff = await ownStaff(req, Number(req.query.staffId));
-      if (staff && !['sales', 'flsp'].includes(staff.role)) staff = null;
+      const viewable = req.user.staffRole === 'zonal_manager' ? ['sales', 'flsp', 'rsm'] : ['sales', 'flsp'];
+      if (staff && !viewable.includes(staff.role)) staff = null;
     } else if (req.user.staffId) staff = await StaffUser.findByPk(req.user.staffId);
     else {
       if (!req.query.staffId) return fail(res, 400, 'Choose a sales person to view');
@@ -200,7 +204,7 @@ exports.me = async (req, res) => {
 exports.metricsForRequest = async (req, fy = fyOf(today())) => {
   if (!req.user?.staffId) return null;
   const staff = await StaffUser.findByPk(req.user.staffId);
-  if (!staff || !['sales', 'flsp', 'rsm'].includes(staff.role)) return null;
+  if (!staff || !['sales', 'flsp', 'rsm', 'zonal_manager'].includes(staff.role)) return null;
   return metricsFor(req.user.id, staff, fy, await costPrices(req.user.id));
 };
 
@@ -221,11 +225,13 @@ exports.people = async (req, res) => {
 exports.team = async (req, res) => {
   try {
     // The Master Admin, or an RSM (read-only team view on their dashboard).
-    if (req.user.staffId && req.user.staffRole !== 'rsm') return fail(res, 403, 'Only the organisation admin or an RSM can see the team');
+    if (req.user.staffId && !MANAGERS.includes(req.user.staffRole)) return fail(res, 403, 'Only the organisation admin, an RSM or a Zonal Manager can see the team');
     const profile = await profileOf(req.user.id);
     if (!profile) return res.json({ success: true, data: [], clients: [] });
     const fy = Number(req.query.fy) || fyOf(today());
-    const staff = await StaffUser.findAll({ where: { partnerProfileId: profile.id, role: ['sales', 'flsp'], status: { [Op.ne]: 'rejected' } }, order: [['name', 'ASC']] });
+    // Sales / FLSP people, plus RSMs for the Zonal Manager and the admin (an RSM's list stays sales people only).
+    const roles = req.user.staffRole === 'rsm' ? ['sales', 'flsp'] : ['sales', 'flsp', 'rsm'];
+    const staff = await StaffUser.findAll({ where: { partnerProfileId: profile.id, role: roles, status: { [Op.ne]: 'rejected' } }, order: [['name', 'ASC']] });
     const costs = await costPrices(req.user.id);
     const data = [];
     for (const s of staff) {
@@ -244,7 +250,7 @@ exports.team = async (req, res) => {
 
 async function ownStaff(req, staffId) {
   const profile = await profileOf(req.user.id);
-  return profile ? StaffUser.findOne({ where: { id: staffId, partnerProfileId: profile.id, role: ['sales', 'flsp', 'rsm'] } }) : null;
+  return profile ? StaffUser.findOne({ where: { id: staffId, partnerProfileId: profile.id, role: ['sales', 'flsp', 'rsm', 'zonal_manager'] } }) : null;
 }
 
 // @route PUT /api/sales-incentive/target  { staffId, fy, target }  (org admin)
